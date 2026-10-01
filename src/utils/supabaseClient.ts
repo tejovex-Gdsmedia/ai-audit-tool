@@ -17,5 +17,5 @@ const supabaseAnonKey = (rawKey && typeof rawKey === 'string' && rawKey.trim().l
   ? rawKey.trim()
   : 'placeholder-anon-key';
 
+// Initialize Supabase client with environment variables or safe fallback
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
