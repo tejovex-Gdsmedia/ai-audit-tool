@@ -4,6 +4,7 @@ import { calculateROI } from './roiCalculator';
 import { assessChallenges } from './confidenceEngine';
 import { recommendStrategy } from './recommendationEngine';
 import { generateWorkflow } from './workflowGenerator';
+import { enrichWithGemini } from '../services/geminiReportService';
 
 export function runAuditAnalysis(inputs: AuditInputs): AuditReport {
   const reportId = 'AUD-' + Math.floor(100000 + Math.random() * 900000);
@@ -94,3 +95,15 @@ export function runAuditAnalysis(inputs: AuditInputs): AuditReport {
     disclaimer
   };
 }
+
+/**
+ * Generates a full hybrid consulting report:
+ * 1. Executes existing deterministic calculation engines (source of truth for numbers)
+ * 2. Enriches narrative with secure Gemini consulting insights via Netlify serverless function
+ * 3. Gracefully falls back to deterministic base report if Gemini is unavailable
+ */
+export async function generateHybridAuditReport(inputs: AuditInputs): Promise<AuditReport> {
+  const baseReport = runAuditAnalysis(inputs);
+  return await enrichWithGemini(inputs, baseReport);
+}
+

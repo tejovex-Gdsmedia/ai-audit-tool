@@ -4,7 +4,7 @@ import ThemeToggle from './components/ThemeToggle';
 import AuditForm from './components/AuditForm';
 import AuditHistory from './components/AuditHistory';
 import ReportDashboard from './components/ReportDashboard';
-import { runAuditAnalysis } from './engines/auditCoordinator';
+import { runAuditAnalysis, generateHybridAuditReport } from './engines/auditCoordinator';
 import { exportAuditToPDF } from './utils/pdfGenerator';
 import { supabase } from './utils/supabaseClient';
 import type { Session } from '@supabase/supabase-js';
@@ -58,8 +58,8 @@ export default function App() {
     'Gathering workflow details...',
     'Reviewing manual steps and complexity...',
     'Calculating weekly, monthly, and yearly hours saved...',
-    'Formulating suggested automated workflow...',
-    'Generating implementation roadmap...'
+    'Preparing your personalized business report...',
+    'Finalizing implementation roadmap...'
   ];
 
   // Dark mode side-effect
@@ -81,6 +81,8 @@ export default function App() {
         setUserName(session.user.user_metadata?.full_name || 'Consultant');
         fetchAudits(session.user.id);
       }
+    }).catch((err) => {
+      console.warn('Supabase auth session initialization notice:', err);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -264,24 +266,37 @@ export default function App() {
     }
   };
 
-  const handleAuditSubmit = (inputs: AuditInputs) => {
+  const handleAuditSubmit = async (inputs: AuditInputs) => {
     if (!session?.user) return;
     setIsAnalyzing(true);
     setLoadingStep(0);
 
+    // Kick off hybrid analysis asynchronously (deterministic base + Gemini enrichment)
+    const reportPromise = generateHybridAuditReport(inputs);
+
+    // Smooth UI progress indicator through customer-friendly steps
+    let stepCount = 0;
     const interval = setInterval(() => {
-      setLoadingStep(prev => {
-        if (prev >= loadingSteps.length - 1) {
-          clearInterval(interval);
-          
-          // Generate final audit report
-          const report = runAuditAnalysis(inputs);
-          saveReportToDb(report);
-          return 0;
-        }
-        return prev + 1;
-      });
-    }, 1000);
+      stepCount++;
+      if (stepCount < loadingSteps.length) {
+        setLoadingStep(stepCount);
+      }
+    }, 800);
+
+    try {
+      const finalReport = await reportPromise;
+      
+      // Ensure at least step animation completes smoothly
+      setTimeout(() => {
+        clearInterval(interval);
+        saveReportToDb(finalReport);
+      }, 600);
+    } catch (err) {
+      console.error('Audit processing error, using deterministic fallback:', err);
+      clearInterval(interval);
+      const fallbackReport = runAuditAnalysis(inputs);
+      saveReportToDb(fallbackReport);
+    }
   };
 
   const handleSelectAudit = (report: AuditReport) => {
